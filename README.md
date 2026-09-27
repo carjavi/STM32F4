@@ -20,6 +20,8 @@
 - [Getting Started](#getting-started)
   - [MCUDev DevEBox STM32F407VGT6 (MCU a Flashear)](#mcudev-devebox-stm32f407vgt6-mcu-a-flashear)
   - [STM32CubeMX](#stm32cubemx)
+    - [Usando los perfiles](#usando-los-perfiles)
+    - [Creando un proyecto desde cero](#creando-un-proyecto-desde-cero)
   - [Output STM32CubeMX](#output-stm32cubemx)
     - [Archivos de compilación (CMake)](#archivos-de-compilación-cmake)
     - [Codigo](#codigo)
@@ -40,6 +42,8 @@
     - [En caso de Error](#en-caso-de-error)
   - [Usar el programador STlinkV2 original / ARM\_KEIL-uVision (Opcion 2)](#usar-el-programador-stlinkv2-original--arm_keil-uvision-opcion-2)
   - [Usar Zadig (Opcion 3)](#usar-zadig-opcion-3)
+- [Code Snippet](#code-snippet)
+- [CONCEPTOS](#conceptos)
 - [Guía de conceptos: STM32, HAL, CubeMX, FreeRTOS y más](#guía-de-conceptos-stm32-hal-cubemx-freertos-y-más)
   - [El panorama general](#el-panorama-general)
   - [1. STM32CubeMX](#1-stm32cubemx)
@@ -56,6 +60,7 @@
   - [10. FATFS (FatFs)](#10-fatfs-fatfs)
   - [Glosario de conceptos relacionados](#glosario-de-conceptos-relacionados)
 - [Links](#links)
+  - [Reglas para proyectos STM32 (Prompts)](#reglas-para-proyectos-stm32-prompts)
 
 <br>
 
@@ -142,16 +147,25 @@ Cortex-M4, 168 MHz, 1024 KB Flash(la "G" lo indica), 192 KB SRAM
 > 
 > El nombre de este archivo determina el nombre del archivo compilado
 
+### Usando los perfiles
+1. Crea el folder del proyecto
+2. Copia alli el perfil MCU a usar, ejemplo: ***DevEBox_F407VGT6_base.ioc***
+3. Cambia el nombre del perfil al nombre de tu projecto, Verifica Toolchain / IDE: **CMake**, parametros y genera el codigo
+> :warning: **Warning:** Recuerda que al generar el codigo con CubeMX ya el nombre del proyecto y del archivo compilado no se podra cambiar facilmente, mas abajo explico como hacerlo.
+4. Ya es posible editar el ```Core/Src/main.c``` para empezar a editar el codigo
+5. compila y flashea el STM32
 
-1. `File > Open Folder`, elegir la carpeta del proyecto generado (STM32-Projects)
-2. Crear el proyecto base (CubeMX embebido). En VScode el ícono de STM32Cube en la barra lateral de VS Code, click en **"Launch STM32CubeMX"**
-3. En CubeMX: **Access to MCU Selector** (no "Board Selector", porque la DevEBox no es una placa oficial de ST con BSP propio) → buscar **STM32F407VET6** → **Start Project**.
-4. Confirmar inicialización de periféricos en modo default cuando lo pida (dejamos GPIO/RCC en default, se ajusta en el paso 3 de este documento).
-5. Pestaña **Project Manager**:
+### Creando un proyecto desde cero
+
+4. `File > Open Folder`, elegir la carpeta del proyecto generado (STM32-Projects)
+5. Crear el proyecto base (CubeMX embebido). En VScode el ícono de STM32Cube en la barra lateral de VS Code, click en **"Launch STM32CubeMX"**
+6. En CubeMX: **Access to MCU Selector** (no "Board Selector", porque la DevEBox no es una placa oficial de ST con BSP propio) → buscar **STM32F407VET6** → **Start Project**.
+7. Confirmar inicialización de periféricos en modo default cuando lo pida (dejamos GPIO/RCC en default, se ajusta en el paso 3 de este documento).
+8. Pestaña **Project Manager**:
    - Project Name: `stm32_name`
    - Toolchain / IDE: **CMake**
    - Linker settings: default
-6. **GENERATE CODE**.
+9.  **GENERATE CODE**.
 
 <p align="center"><img src="./img/STM_generate-code.png" width="500"   alt=" " /></p>
 
@@ -362,7 +376,7 @@ STM32CubeProgrammer acepta **.elf**, **.hex** y **.bin**. El resultado en el chi
 Es el que genera la compilación sin configurar nada extra, ya lleva las direcciones y no hay forma de equivocarse:
 
 ```bash
-STM32_Programmer_CLI -c port=USB1 -w build/Debug/<nombre>.elf -v
+STM32_Programmer_CLI -c port=USB1 -w build/Debug/[nombre].elf -v
 ```
 
 #### Cuándo usar los otros formatos
@@ -436,6 +450,72 @@ Zadig es una herramienta pequeña, gratuita y muy usada para instalar el driver 
 4. En el desplegable elige STM32 BOOTLOADER. Comprueba que el USB ID sea 0483 DF11.
 5. En la casilla de la derecha deja WinUSB y pulsa Install Driver (o Replace Driver). Tarda alrededor de un minuto.
 6. Desconecta y vuelve a conectar la placa.
+
+<br>
+
+<br>
+
+# Code Snippet
+
+Blinking Led
+```c
+  while (1)
+  {
+    /* USER CODE BEGIN 2 */
+    HAL_GPIO_TogglePin(LED_D2_GPIO_Port, LED_D2_Pin);
+    HAL_Delay(100);
+    /* USER CODE END 2 */
+  }
+```
+
+# CONCEPTOS
+```EXTI (EXTernal Interrupt/event controller)``` es el periferico del STM32 que vigila senales externas (pines GPIO y algunas senales internas) y genera una interrupcion o un evento cuando detecta un FLANCO:
+
+  - Flanco de subida (rising)  : la senal pasa de 0 a 1.
+  - Flanco de bajada (falling) : la senal pasa de 1 a 0.
+  - Ambos flancos              : cualquier cambio.
+
+Sin EXTI habria que leer el pin continuamente (polling) para saber si cambio. Con EXTI, el hardware avisa a la CPU solo cuando pasa algo; mientras tanto la CPU puede hacer otras tareas o incluso dormir (modo de bajo consumo).
+
+Como se asignan las lineas en el STM32F4:
+  - Hay 16 lineas EXTI para GPIO: EXTI0 ... EXTI15.
+  - La linea EXTIn corresponde al pin numero n de CUALQUIER puerto:
+    PA0, PB0, PC0... comparten EXTI0. PA1, PB1... comparten EXTI1, etc.
+  - Un multiplexor (registro SYSCFG_EXTICR) elige que puerto usa cada linea.
+    Por eso NO se pueden tener interrupciones independientes en PA0 y PB0 a
+    la vez: ambos usarian EXTI0.
+  - En este proyecto: K1 esta en PA0 -> linea EXTI0 -> puerto A.
+
+```EXTI0_IRQn``` es el numero de interrupcion (IRQ 6 en el STM32F4) asignado a la linea EXTI0. Cada IRQ tiene una rutina de servicio (ISR) en la tabla de vectores (startup_stm32f407xx.s). Para EXTI0 esa rutina es EXTI0_IRQHandler.
+
+***Nota***: las lineas 0 a 4 tienen cada una su propia IRQ (EXTI0_IRQn ...EXTI4_IRQn). Las lineas 5-9 comparten EXTI9_5_IRQn y las 10-15 comparten EXTI15_10_IRQn. Usar PA0 da una IRQ exclusiva, sin tener que averiguar que pin la disparo.
+
+```NVIC (Nested Vectored Interrupt Controller)``` es el controlador de interrupciones del nucleo ARM Cortex-M4. Es parte de la CPU, no un periferico de ST. Recibe las solicitudes de todos los perifericos (EXTI, USART, SDIO, USB, timers...) y decide cuando y en que orden las atiende la CPU.
+
+  - ```Vectored``` : cada interrupcion tiene su propia entrada (vector) en una tabla con la direccion de su ISR. La CPU salta directo a la rutina correcta, sin buscar la fuente por software.
+  - ```Nested```   : una interrupcion MAS urgente puede interrumpir a otra menos urgente que se este ejecutando (anidamiento).
+
+Funciones principales:
+  - Habilitar / deshabilitar cada IRQ: HAL_NVIC_EnableIRQ(EXTI0_IRQn).
+  - Asignar prioridades: HAL_NVIC_SetPriority(EXTI0_IRQn, 6, 0).
+  - Mantener el estado "pendiente" y "activo" de cada interrupcion.
+
+Prioridades (en Cortex-M, un NUMERO MENOR = MAS URGENTE).
+
+
+```Tecnica anti-rebote: timestamp con HAL_GetTick```:
+
+```El problema```: el REBOTE (bounce)
+  Un pulsador mecanico no cambia limpio de 0 a 1. Sus contactos metalicos "rebotan" durante unos 1-20 ms y generan varios flancos seguidos:
+```
+       Ideal:       ______|‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾|______
+       Real:        ______|‾|_|‾‾|_|‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾|_|‾|_|______
+                          <--rebote-->              <-rebote->
+                          (al presionar)            (al soltar)
+```
+  Como EXTI es muy rapido, cada uno de esos flancos dispararia la interrupcion: una sola pulsacion podria enviar datos 3, 5 o mas veces. Ademas, el rebote AL SOLTAR tambien produce flancos de SUBIDA espurios.
+
+```La herramienta HAL_GetTick()```: HAL configura SysTick para interrumpir cada 1 ms e incrementar un contador global(uwTick). HAL_GetTick() devuelve ese contador: los milisegundos transcurridos desde el arranque. Es barato de leer y se puede usar dentro de una ISR. Se desborda a los ~49.7 dias, pero la resta sin signo (ahora - antes) sigue dando el resultado correcto aun despues del desbordamiento.
 
 <br>
 
@@ -790,9 +870,40 @@ f_close(&archivo);                                      // ¡siempre cerrar!
 
 
 # Links
-https://stm32-base.org/
+more info :https://stm32-base.org/
 
 Mi placa: https://stm32-base.org/boards/STM32F407VGT6-STM32F4XX-M.html 
+
+
+<br>
+
+## Reglas para proyectos STM32 (Prompts)
+
+1. **Configuración del `.ioc` con STM32CubeMX CLI**
+   - Todo cambio de periféricos, pines, clocks o DMA se hace en el `.ioc`. El código se regenera con STM32CubeMX en modo línea de comandos (`STM32CubeMX -q <script>`), no editando a mano los archivos generados.
+   - El código propio va en archivos aparte o dentro de los bloques `USER CODE BEGIN/END`, para que sobreviva a cada regeneración.
+   - Si la CLI se bloquea (por ejemplo, por un diálogo de advertencia que en modo script no se puede responder), detén el proceso, avísame qué lo bloqueó y replica a mano exactamente lo que generaría CubeMX, dejando el `.ioc` coherente para regenerar desde la GUI.
+
+2. **Salida serial por USB CDC (Virtual COM Port)**
+   - Cuando pida "UART" o "salida serial" para logs o debug, usa por defecto **USB OTG FS en modo Device, clase CDC (PA11 = USB_DM, PA12 = USB_DP)**, no un USART físico, salvo que indique otra cosa.
+   - Redirige `printf` a `CDC_Transmit_FS()` y maneja el caso de que el host aún no haya abierto el puerto (`USBD_BUSY` / sin enumerar) sin bloquear el programa.
+
+3. **Pulsadores con anti-rebote por software**
+   - Toda entrada de pulsador lleva debounce por software, no bloqueante, basado en `HAL_GetTick()` (ventana típica de 20–50 ms, configurable con un `#define`). Si la entrada usa EXTI, la ISR solo marca el evento y el filtrado se hace fuera de la ISR.
+   - Nunca uses `HAL_Delay()` dentro de una ISR ni para hacer el debounce.
+
+4. **Compilación y verificación**
+   - Al terminar, compila el proyecto (Debug y, si existe, Release) y confirma que no haya **errores ni warnings** en el código propio.
+   - Reporta el uso de FLASH y RAM. Si algo falla, muestra el error real en vez de asumir que funciona.
+
+5. **README.md en la raíz del proyecto**, con estas secciones:
+   - **Descripción:** qué hace el proyecto, en 2–3 líneas, con MCU/placa y hardware externo.
+   - **Modificaciones en el `.ioc`:** periféricos, pines, DMA, NVIC y clocks agregados o cambiados, y por qué.
+   - **Tabla de conexiones:** señal del dispositivo ↔ GPIO del STM32 ↔ User Label de CubeMX ↔ función ↔ pin físico en la placa.
+   - **Librerías usadas:** HAL, middlewares (USB, FATFS, etc.) y cualquier librería externa, con su versión.
+   - **Funciones y registros importantes:** API pública, callbacks e ISR, y registros o comandos del periférico que el código configura (por ejemplo, registros de un controlador de pantalla o de un sensor).
+   
+
 
 
 <br>
