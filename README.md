@@ -32,11 +32,11 @@
   - [Output .elf | .hex | .bin en la compilación](#output-elf--hex--bin-en-la-compilación)
 - [How to STM32F407VGT6 Flashear](#how-to-stm32f407vgt6-flashear)
   - [Programación por USB (bootloader DFU sin el programador ST-LINK) (Opcion 1)](#programación-por-usb-bootloader-dfu-sin-el-programador-st-link-opcion-1)
-    - [Bootloader DFU \& STM32CubeProgrammer](#bootloader-dfu--stm32cubeprogrammer)
+    - [Bootloader DFU \& STM32CubeProgrammer (Flashing via DFU)](#bootloader-dfu--stm32cubeprogrammer-flashing-via-dfu)
     - [Formatos de archivo para flashear con STM32CubeProgrammer](#formatos-de-archivo-para-flashear-con-stm32cubeprogrammer)
       - [Recomendado: usar el `.elf`](#recomendado-usar-el-elf)
       - [Cuándo usar los otros formatos](#cuándo-usar-los-otros-formatos)
-    - [Bootloader DFU \& Terminal](#bootloader-dfu--terminal)
+    - [Bootloader DFU \& Terminal (Flashing via DFU)](#bootloader-dfu--terminal-flashing-via-dfu)
     - [En caso de Error](#en-caso-de-error)
   - [Usar el programador STlinkV2 original / ARM\_KEIL-uVision (Opcion 2)](#usar-el-programador-stlinkv2-original--arm_keil-uvision-opcion-2)
   - [Usar Zadig (Opcion 3)](#usar-zadig-opcion-3)
@@ -56,7 +56,6 @@
   - [10. FATFS (FatFs)](#10-fatfs-fatfs)
   - [Glosario de conceptos relacionados](#glosario-de-conceptos-relacionados)
 - [Links](#links)
-- [](#)
 
 <br>
 
@@ -72,6 +71,13 @@
 
 > ⚠️ **No confundir con "STM32CubeMX2"**: ST lanzó en 2026 una herramienta nueva y separada, STM32CubeMX2, que solo sirve para MCUs de próxima generación con capa HAL2 (STM32C5 en adelante). El **STM32F407 (HAL1) necesita el STM32CubeMX clásico**, que es el que se baja del mismo link de arriba. La extensión de VS Code tiene botones separados para cada uno ("Launch STM32CubeMX" vs. "Launch STM32CubeMX2" — ver nota en el paso 1.3) y es fácil apretar el equivocado.
 
+```STM32CubeMX``` - Es una herramienta gráfica para configurar microcontroladores y generar el código de inicialización.
+
+```STM32CubeIDE``` - Es el entorno de desarrollo completo (IDE) para escribir, compilar, programar y depurar el código de la aplicación.
+
+```STM32CubeMX``` & ```STM32CubeIDE``` funcionan como herramientas independientes que se complementan e interconectan.
+
+<br>
 
 ## Install Framework for VScode
 Existen 2 caminos ```PlatformIO (con framework STM32Cube)``` y la extensión oficial de ST  ```STM32CubeIDE for Visual Studio Code```.
@@ -127,6 +133,9 @@ Cortex-M4, 168 MHz, 1024 KB Flash(la "G" lo indica), 192 KB SRAM
 | **USB** | OTG FS en modo dispositivo CDC (puerto COM virtual) |
 | **Consola serie** | USART1 a 115200 (PA9 TX / PA10 RX) |
 
+> :memo: **Note:** El Puerto USB del STM32F407VGT6 no permite depurar (sin breakpoints ni ejecución paso a paso), solo grabar ***SOLO*** si se pone el MCU en modo DFU. NO se puede usar ST links ni otro hardaware en el puerto serial para flashear, en ese caso se usa los pines del puerto J1 para poner un hardware para flashear como el ST links o sus variantes.
+
+
 ## STM32CubeMX
 
 > :bulb: **Tip:** Podemos copiar el perfil predeterminado ya creado para este STM32 llamado ```DevEBox_F407VGT6_base.ioc``` o ```DevEBox_F407VGT6_base_FreeRTOS.ioc``` (si se trabaja con FreeRTOS) en la carpeta de trabajo.
@@ -162,13 +171,16 @@ MiProyecto/
 │   ├── gcc-arm-none-eabi.cmake       ← le dice a CMake que use el compilador ARM
 │   └── stm32cubemx/CMakeLists.txt    ← archivos que gestiona CubeMX (no editar)
 ├── Core/ 
-│       ├── Inc/
+│       ├── Inc/                       ← tus headers + los que genera CubeMX (main.h, stm32f4xx_hal_conf.h...)
 │       │   └── files.h
 │       │ 
-│       └── Src/
+│       └── Src/                       ← tus .c + main.c, stm32f4xx_it.c (interrupciones), etc.
 │           └── files.c
-├── Drivers/  
+├── Drivers/ 
+│   ├── CMSIS/                        ← headers del core ARM Cortex-M4 (no lo tocás nunca)
+│   └── STM32F4xx_HAL_Driver/         ← la librería HAL completa (Inc/ y Src/, tampoco se toca) 
 ├── Middlewares/
+│   └── Third_Party/FreeRTOS/         ← el kernel de FreeRTOS que agrega CubeMX al habilitarlo
 ├── DevEBox_F407VGT6_base.ioc         ← configuration STM32CubeMX
 └── STM32F407XX_FLASH.ld              ← linker script
 ```
@@ -195,13 +207,19 @@ Generar proyectos para CMake para poder trabajar con VSCode
 
 ### Codigo
 
+```Core/Inc — Headers (.h)```: Contiene las declaraciones, prototipos de funciones, #define, structs, tipos. Es lo que un archivo necesita ver para usar una función sin conocer cómo está implementada.
+
+```Core/Src — Código fuente (.c)```: Contiene la implementación real: el cuerpo de las funciones, la lógica.
+
+
+* ```Core/Inc/```: los .h correspondientes. Destacan main.h, con los nombres de los pines (por ejemplo LED_D2_Pin), y stm32f4xx_hal_conf.h, que define qué módulos de la HAL se incluyen.
 * ```Core/Src/```: los .c de la aplicación.
-  * ```main.c```: el punto de entrada. Contiene la inicialización del reloj y los periféricos, y el while(1) principal.
+  * ```main.c```: el punto de entrada. Contiene la inicialización del reloj y los periféricos, y el ```while(1) principal```. Aqui va mi programación principal.
   * ```stm32f4xx_it.c```: las rutinas de interrupción (SysTick, UART, DMA…).
   * ```stm32f4xx_hal_msp.c```: la configuración de bajo nivel de cada periférico (qué pines usa, qué relojes enciende).
   * ```system_stm32f4xx.c```: el arranque del reloj del sistema, antes de main().
   * ```syscalls.c y sysmem.c```: el soporte para funciones de C como printf y malloc.
-* ```Core/Inc/```: los .h correspondientes. Destacan main.h, con los nombres de los pines (por ejemplo LED_D2_Pin), y stm32f4xx_hal_conf.h, que define qué módulos de la HAL se incluyen.
+
 
 ### Código de ST (normalmente no se toca)
 * ```Drivers/```: las librerías de ST para el microcontrolador.
@@ -309,7 +327,7 @@ El STM32F407 trae de fábrica un bootloader que acepta programación por el USB 
 
 > :warning: **Warning:** Esta opción no permite depurar (sin breakpoints ni ejecución paso a paso), solo grabar. Si Windows no reconoce el dispositivo "STM32 BOOTLOADER", instala los drivers desde STM32Cube Resources → Install ST-Link USB drivers.
 
-### Bootloader DFU & STM32CubeProgrammer
+### Bootloader DFU & STM32CubeProgrammer (Flashing via DFU)
 
 1. Pon la placa en modo bootloader: coloca BOOT0 en 1 (en la DevEBox suele ser un jumper o un par de pines marcados BOOT0 que se unen a 3.3V). Conecta el micro-USB de la placa al PC, o pulsa RESET si ya estaba conectada.
 2. Correr STM32CubeProgrammer y seleccionar USB en vez de ST Link, Actualizar Puerto en USB Configuration (darle unos segundos), debe detectar algo asi como ```USB1```
@@ -354,7 +372,7 @@ STM32_Programmer_CLI -c port=USB1 -w build/Debug/<nombre>.elf -v
 
 > :memo: **Note:** El `.elf` es el único que sirve para **depurar** (breakpoints, variables), porque es el único que contiene los símbolos del programa.
 
-### Bootloader DFU & Terminal
+### Bootloader DFU & Terminal (Flashing via DFU)
 
 1. Pon la placa en modo bootloader: coloca BOOT0 en 1 (en la DevEBox suele ser un jumper o un par de pines marcados BOOT0 que se unen a 3.3V). Conecta el micro-USB de la placa al PC, o pulsa RESET si ya estaba conectada.
    
@@ -774,8 +792,12 @@ f_close(&archivo);                                      // ¡siempre cerrar!
 # Links
 https://stm32-base.org/
 
+Mi placa: https://stm32-base.org/boards/STM32F407VGT6-STM32F4XX-M.html 
 
 
+<br>
+
+<br>
 
 ---
 
@@ -788,5 +810,4 @@ https://stm32-base.org/
 <p align="center">
     <a href="https://instintodigital.net/" target="_blank"><img src="./img/developer.png" height="100" alt="www.instintodigital.net"></a>
 </p>
-# 
-STM32F4
+
