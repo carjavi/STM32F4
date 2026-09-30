@@ -31,6 +31,10 @@
   - [STM32CubeMX configuraciones importantes](#stm32cubemx-configuraciones-importantes)
 - [Compilation](#compilation)
   - [Cambiar el nombre del ejecutable](#cambiar-el-nombre-del-ejecutable)
+  - [Debug \& Release](#debug--release)
+    - [Directorio Debug (Depuración)](#directorio-debug-depuración)
+    - [Directorio Release (Producción)](#directorio-release-producción)
+    - [Resumen de diferencias](#resumen-de-diferencias)
   - [Output .elf | .hex | .bin en la compilación](#output-elf--hex--bin-en-la-compilación)
 - [How to STM32F407VGT6 Flashear](#how-to-stm32f407vgt6-flashear)
   - [Programación por USB (bootloader DFU sin el programador ST-LINK) (Opcion 1)](#programación-por-usb-bootloader-dfu-sin-el-programador-st-link-opcion-1)
@@ -42,6 +46,8 @@
     - [En caso de Error](#en-caso-de-error)
   - [Usar el programador STlinkV2 original / ARM\_KEIL-uVision (Opcion 2)](#usar-el-programador-stlinkv2-original--arm_keil-uvision-opcion-2)
   - [Usar Zadig (Opcion 3)](#usar-zadig-opcion-3)
+- [Debugger](#debugger)
+  - [ST-LINK/V2 Clone](#st-linkv2-clone)
 - [Code Snippet](#code-snippet)
 - [CONCEPTOS](#conceptos)
 - [Guía de conceptos: STM32, HAL, CubeMX, FreeRTOS y más](#guía-de-conceptos-stm32-hal-cubemx-freertos-y-más)
@@ -299,6 +305,32 @@ CubeMX no sobrescribe ese archivo al regenerar, así que el cambio se mantiene.
 3. Compila. Ahora obtendrás ***build/Debug/MiNombre.elf***
 4. Si ya tienes un ***.vscode/launch.json***, actualiza ahí la ruta del .elf, porque si no el depurador buscará el archivo con el nombre antiguo.
 
+## Debug & Release
+Al compilar se generan 2 carpetas ```Debug``` & ```Release``` dentro de la carpeta ```Build```. La diferencia principal entre las carpetas **Debug** y **Release** radica en la **optimización del código** y la **inclusión de información de depuración**. Debido a esto, los archivos `*.elf` de cada carpeta **no funcionan exactamente igual** en términos de rendimiento, tamaño y facilidad de depuración, aunque ambos realizan las mismas funciones lógicas del programa.
+
+Aquí te detallo las diferencias clave:
+
+### Directorio Debug (Depuración)
+* **Objetivo:** Diseñado para la etapa de desarrollo y pruebas.
+* **Optimización:** Está configurada en **Ninguna (-O0)**. El compilador traduce el código de forma literal a instrucciones de ensamblador, manteniendo una correspondencia exacta línea por línea con tu código en C/C++.
+* **Información de depuración:** Incluye símbolos y metadatos completos. Esto permite pausar el programa, poner puntos de interrupción (*breakpoints*) y ver el valor exacto de las variables en tiempo real.
+* **Archivo .elf:** Es **más grande** en tamaño de almacenamiento (debido a los símbolos) y la ejecución del código en el microcontrolador es **más lenta** y ocupa más memoria Flash/RAM.
+
+### Directorio Release (Producción)
+* **Objetivo:** Diseñado para el producto final que se entregará al usuario o se grabará permanentemente en el chip.
+* **Optimización:** Está configurada en **Alta (usualmente -Os para optimizar tamaño o -O3 para velocidad)**. El compilador reorganiza, elimina código muerto e incluso reestructura bucles para que el microcontrolador funcione lo más rápido y eficiente posible.
+* **Información de depuración:** Se elimina por completo para reducir el tamaño del binario.
+* **Archivo .elf:** Es mucho **más pequeño y rápido**. Sin embargo, si intentas depurarlo paso a paso, el puntero del código "saltará" de forma caótica porque el orden de las instrucciones físicas ya no coincide exactamente con tu código escrito.
+
+### Resumen de diferencias
+
+| Característica | Archivo `.elf` en Debug | Archivo `.elf` en Release |
+| :--- | :--- | :--- |
+| **Optimización** | Desactivada (`-O0`) | Activada (`-Os` o `-O3`) |
+| **Velocidad de ejecución** | Más lenta | Máxima |
+| **Tamaño en memoria Flash** | Mayor | Menor |
+| **Capacidad de depurar** | Total y precisa | Muy difícil o imposible |
+
 ## Output .elf | .hex | .bin en la compilación
 Despues de compilar solo se genera el archivo .elf porque no hay un botón o casilla para esto en la extensión de VS Code. Esa salida se define en el archivo ```CMakeLists.txt```, una alternativa para forzar dichas salidas:
 
@@ -450,6 +482,20 @@ Zadig es una herramienta pequeña, gratuita y muy usada para instalar el driver 
 4. En el desplegable elige STM32 BOOTLOADER. Comprueba que el USB ID sea 0483 DF11.
 5. En la casilla de la derecha deja WinUSB y pulsa Install Driver (o Replace Driver). Tarda alrededor de un minuto.
 6. Desconecta y vuelve a conectar la placa.
+
+
+
+
+# Debugger
+Existen varios depuradores diferentes que se pueden utilizar. Existen dos conectores de uso común que exponen únicamente la interfaz SWD (Serial Wire Debug) o la interfaz JTAG completa.
+
+> :warning: **Warning:** No conecte el pin de +3,3 V si alimenta la placa externamente, ya que la mayoría de las placas de desarrollo chinas no tienen protección en los pines de alimentación. Esto podría dañar la placa, el depurador o el ordenador.
+
+## ST-LINK/V2 Clone
+
+<p align="center"><img src="./img/STM32F103C8U6_ST-LINK_V2-1.jpg" width="500"  alt=" " /></p>
+<p align="center"><img src="./img/ST-LINK_V2_Clone_Header.png" width="500"  alt=" " /></p>
+<p align="center"><img src="./img/stm32-st-link-v2-arduino.webp" width="600"  alt=" " /></p>
 
 <br>
 
