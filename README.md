@@ -39,15 +39,15 @@
 - [How to STM32F407VGT6 Flashear](#how-to-stm32f407vgt6-flashear)
   - [Programación por USB (bootloader DFU sin el programador ST-LINK) (Opcion 1)](#programación-por-usb-bootloader-dfu-sin-el-programador-st-link-opcion-1)
     - [Bootloader DFU \& STM32CubeProgrammer (Flashing via DFU)](#bootloader-dfu--stm32cubeprogrammer-flashing-via-dfu)
-    - [Formatos de archivo para flashear con STM32CubeProgrammer](#formatos-de-archivo-para-flashear-con-stm32cubeprogrammer)
+  - [Usar el programador ST-LINK/V2 Clone \& STM32CubeProgrammer (Opcion 2)](#usar-el-programador-st-linkv2-clone--stm32cubeprogrammer-opcion-2)
+  - [Bootloader DFU \& Terminal (Flashing via DFU) (opcion 3)](#bootloader-dfu--terminal-flashing-via-dfu-opcion-3)
+    - [En caso de Error](#en-caso-de-error)
+  - [Usar el programador STlinkV2 original / ARM\_KEIL-uVision (Opcion 4)](#usar-el-programador-stlinkv2-original--arm_keil-uvision-opcion-4)
+  - [Usar Zadig (Opcion 5)](#usar-zadig-opcion-5)
+  - [Formatos de archivo para flashear con STM32CubeProgrammer](#formatos-de-archivo-para-flashear-con-stm32cubeprogrammer)
       - [Recomendado: usar el `.elf`](#recomendado-usar-el-elf)
       - [Cuándo usar los otros formatos](#cuándo-usar-los-otros-formatos)
-    - [Bootloader DFU \& Terminal (Flashing via DFU)](#bootloader-dfu--terminal-flashing-via-dfu)
-    - [En caso de Error](#en-caso-de-error)
-  - [Usar el programador STlinkV2 original / ARM\_KEIL-uVision (Opcion 2)](#usar-el-programador-stlinkv2-original--arm_keil-uvision-opcion-2)
-  - [Usar Zadig (Opcion 3)](#usar-zadig-opcion-3)
 - [Debugger](#debugger)
-  - [ST-LINK/V2 Clone](#st-linkv2-clone)
 - [Code Snippet](#code-snippet)
 - [CONCEPTOS](#conceptos)
 - [Guía de conceptos: STM32, HAL, CubeMX, FreeRTOS y más](#guía-de-conceptos-stm32-hal-cubemx-freertos-y-más)
@@ -366,7 +366,7 @@ Recomendaciones:
 2. Instala los driver de ```C:\Users\carja\AppData\Local\stm32cube\bundles\programmer\2.23.0\Drivers\DFU_Driver\``` ejecuta el .bat o .exe de esa carpeta como administrador" 
 
 
-```- Hay 3 Formas de flashear los STM32 - ```
+```- Hay varias formas de flashear los STM32 - ```
 
 ## Programación por USB (bootloader DFU sin el programador ST-LINK) (Opcion 1)
 El STM32F407 trae de fábrica un bootloader que acepta programación por el USB de la placa (permite grabar el chip directamente por USB):
@@ -391,34 +391,30 @@ El STM32F407 trae de fábrica un bootloader que acepta programación por el USB 
 5. Si no hay mensaje de error esta listo
 6. Vuelve BOOT0 a 0 y RST para que arranque el programa.
 
+<br>
 
+## Usar el programador ST-LINK/V2 Clone & STM32CubeProgrammer (Opcion 2)
 
-### Formatos de archivo para flashear con STM32CubeProgrammer
+<p align="center"><img src="./img/STM32F103C8U6_ST-LINK_V2-1.jpg" width="400"  alt=" " /></p>
+<p align="center"><img src="./img/ST-LINK_V2_Clone_Header.png" width="400"  alt=" " /></p>
+<p align="center"><img src="./img/stm32-st-link-v2-arduino.webp" width="600"  alt=" " /></p>
 
-STM32CubeProgrammer acepta **.elf**, **.hex** y **.bin**. El resultado en el chip es el mismo; la diferencia es cuánta información trae cada archivo sobre **dónde** grabar.
+Conectar ```SWDIO```,```GND```,```SWCLK``` y ```+3.3V``` a la puerto ```SWD``` (Serial Wire Debug) del STM32f4
 
-| Formato | ¿Incluye la dirección? | Cómo se usa |
-|---|---|---|
-| **.elf** | Sí, además de símbolos de depuración | Directo: `-w programa.elf` |
-| **.hex** | Sí | Directo: `-w programa.hex` |
-| **.bin** | **No**, son solo los bytes en bruto | Hay que indicar la dirección: `-w programa.bin 0x08000000` |
+1. Abrir STM32CubeProgrammer
+2. Se debe seleccionar ```ST-Link```
+3. Actualizar el ```serial number``` si aparece un serial largo de numeros esta ok listo para conectar, si solo aparece una letra o un solo numero debemos habilitar la opcion ```Shered``` pasamos a Enabled para luego actualizar el ```serial number``` y ver el serial del dispositivo
+4. Conectar
+5. Seleccionar el archivo *.elf en la opcion ```+```
+6. Download
+7. Reset a la placa para iniciar el nuevo programa
 
-#### Recomendado: usar el `.elf`
+<p align="center"><img src="./img/stlinkv2.png" width="600"  alt=" " /></p>
+<p align="center"><img src="./img/STlinkv2_2.png" width="600"  alt=" " /></p>
 
-Es el que genera la compilación sin configurar nada extra, ya lleva las direcciones y no hay forma de equivocarse:
+<br>
 
-```bash
-STM32_Programmer_CLI -c port=USB1 -w build/Debug/[nombre].elf -v
-```
-
-#### Cuándo usar los otros formatos
-
-- **.hex**: para entregar el firmware a otra persona, herramienta o programador de producción. Es texto, lleva las direcciones y lo aceptan casi todas las herramientas.
-- **.bin**: para bootloaders propios, actualizaciones OTA o cargas por UART/SD, donde se envían los bytes tal cual. Al grabarlo con CubeProgrammer, **indicar siempre la dirección `0x08000000`** (inicio de la Flash del STM32F407). Sin ella, o con una dirección equivocada, el micro no arranca.
-
-> :memo: **Note:** El `.elf` es el único que sirve para **depurar** (breakpoints, variables), porque es el único que contiene los símbolos del programa.
-
-### Bootloader DFU & Terminal (Flashing via DFU)
+## Bootloader DFU & Terminal (Flashing via DFU) (opcion 3)
 
 1. Pon la placa en modo bootloader: coloca BOOT0 en 1 (en la DevEBox suele ser un jumper o un par de pines marcados BOOT0 que se unen a 3.3V). Conecta el micro-USB de la placa al PC, o pulsa RESET si ya estaba conectada.
    
@@ -436,9 +432,7 @@ Debe aparecer USB1 con "DFU in HS Mode" o similar. Si dice que no hay dispositiv
 STM32_Programmer_CLI -c port=USB1 -w build/Debug/<NAME-FILE>.elf -v
 ```
 > :bulb: **Tip:** STM32_Programmer_CLI acepta el .elf directamente
-4. Vuelve BOOT0 a 0 y reinicia para que arranque tu programa.
-
-<br>
+4. Vuelve BOOT0 a 0 y reinicia para que arranque tu programa
 
 ### En caso de Error
 
@@ -466,15 +460,16 @@ STM32_Programmer_CLI -l                 # Detecta el Hardware
 STM32_Programmer_CLI -c port=SWD
 ```
 
+<br>
 
-## Usar el programador STlinkV2 original / ARM_KEIL-uVision (Opcion 2)
+## Usar el programador STlinkV2 original / ARM_KEIL-uVision (Opcion 4)
 
 > :warning: **Warning:** el STM32CubeIDE da problemas para flashear MPU no originales, se debe usar:
 > * STM32CubeProgrammer (STM32CubeIDE) no hace debugger a los clones 
 > * ARM_KEIL-uVision (MDK-ARM) con este ultimo me permite programar y hacer debugger a los clones de STM32
 
 
-## Usar Zadig (Opcion 3)
+## Usar Zadig (Opcion 5)
 Zadig es una herramienta pequeña, gratuita y muy usada para instalar el driver USB genérico de Windows (WinUSB), que es el que usa el programador para el modo DFU.
 1. Descárgalo desde https://zadig.akeo.ie (es un solo .exe, no requiere instalación).
 2. Conecta la placa con BOOT0 en 1, para que aparezca "STM32 BOOTLOADER".
@@ -484,6 +479,33 @@ Zadig es una herramienta pequeña, gratuita y muy usada para instalar el driver 
 6. Desconecta y vuelve a conectar la placa.
 
 
+## Formatos de archivo para flashear con STM32CubeProgrammer
+
+STM32CubeProgrammer acepta **.elf**, **.hex** y **.bin**. El resultado en el chip es el mismo; la diferencia es cuánta información trae cada archivo sobre **dónde** grabar.
+
+| Formato | ¿Incluye la dirección? | Cómo se usa |
+|---|---|---|
+| **.elf** | Sí, además de símbolos de depuración | Directo: `-w programa.elf` |
+| **.hex** | Sí | Directo: `-w programa.hex` |
+| **.bin** | **No**, son solo los bytes en bruto | Hay que indicar la dirección: `-w programa.bin 0x08000000` |
+
+#### Recomendado: usar el `.elf`
+
+Es el que genera la compilación sin configurar nada extra, ya lleva las direcciones y no hay forma de equivocarse:
+
+```bash
+STM32_Programmer_CLI -c port=USB1 -w build/Debug/[nombre].elf -v
+```
+
+#### Cuándo usar los otros formatos
+
+- **.hex**: para entregar el firmware a otra persona, herramienta o programador de producción. Es texto, lleva las direcciones y lo aceptan casi todas las herramientas.
+- **.bin**: para bootloaders propios, actualizaciones OTA o cargas por UART/SD, donde se envían los bytes tal cual. Al grabarlo con CubeProgrammer, **indicar siempre la dirección `0x08000000`** (inicio de la Flash del STM32F407). Sin ella, o con una dirección equivocada, el micro no arranca.
+
+> :memo: **Note:** El `.elf` es el único que sirve para **depurar** (breakpoints, variables), porque es el único que contiene los símbolos del programa.
+
+
+<br>
 
 
 # Debugger
@@ -491,11 +513,7 @@ Existen varios depuradores diferentes que se pueden utilizar. Existen dos conect
 
 > :warning: **Warning:** No conecte el pin de +3,3 V si alimenta la placa externamente, ya que la mayoría de las placas de desarrollo chinas no tienen protección en los pines de alimentación. Esto podría dañar la placa, el depurador o el ordenador.
 
-## ST-LINK/V2 Clone
 
-<p align="center"><img src="./img/STM32F103C8U6_ST-LINK_V2-1.jpg" width="500"  alt=" " /></p>
-<p align="center"><img src="./img/ST-LINK_V2_Clone_Header.png" width="500"  alt=" " /></p>
-<p align="center"><img src="./img/stm32-st-link-v2-arduino.webp" width="600"  alt=" " /></p>
 
 <br>
 
